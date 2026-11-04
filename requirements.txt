@@ -1,0 +1,8 @@
+fastapi[all]
+polars
+pymupdf
+aiosmtplib
+sqlmodel
+python-multipart
+jinja2
+openpyxl
