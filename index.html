@@ -126,7 +126,7 @@ let MOCK=false,CSRF='',ST={step:0,batch:null,tpl:null,tpls:[],cfg:null,rep:null,
 const B=()=>ST.batch.id;
 
 /* ---------- API layer: every backend call goes through here ---------- */
-const API_BASE = 'http://localhost:8000/api/v1';
+const API_BASE = `${window.location.origin}/api/v1`;
 
 /* ---------- API layer: every backend call goes through here ---------- */
 async function api(method,path,body,o={}){

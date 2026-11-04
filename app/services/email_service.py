@@ -18,8 +18,12 @@ async def send_certificate_email(to_email: str, subject: str, html_body: str, pd
         filename=filename
     )
     
-    smtp_host = os.getenv("SMTP_HOST", "localhost")
-    smtp_port = int(os.getenv("SMTP_PORT", 1025))
+    smtp_host = os.getenv("SMTP_HOST")
+
+    if not smtp_host:
+        raise RuntimeError("SMTP_HOST environment variable is not configured.")
+
+    smtp_port = int(os.getenv("SMTP_PORT", 587))
     
     await aiosmtplib.send(
         msg,
