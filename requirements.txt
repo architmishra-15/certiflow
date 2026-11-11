@@ -3,6 +3,7 @@ polars
 pymupdf
 httpx>=0.28,<1
 sqlmodel
+resend>=2.53.2,<3
 python-multipart
 jinja2
 openpyxl
