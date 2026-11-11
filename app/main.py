@@ -4,6 +4,13 @@ from .routers import batches, templates
 from fastapi.responses import HTMLResponse
 from pathlib import Path
 
+from dotenv import load_dotenv
+
+load_dotenv(
+    Path(__file__).resolve().parent.parent / ".env",
+    override=False,
+)
+
 app = FastAPI(
     title="Certificate Automation API",
     version="1.0.0",

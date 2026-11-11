@@ -1,8 +1,9 @@
 fastapi[all]
 polars
 pymupdf
-aiosmtplib
+httpx>=0.28,<1
 sqlmodel
 python-multipart
 jinja2
 openpyxl
+python-dotenv>=1,<2

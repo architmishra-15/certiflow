@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>CertiFlow – Dry Run (no emails sent)</title>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@400;600;800&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com/3.4.17"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>tailwind.config={theme:{extend:{fontFamily:{sans:['"Bricolage Grotesque"','system-ui','sans-serif']},colors:{ink:'#0b1f3a',gold:'#c9a227',jade:'#0f766e'}}}}</script>
+<style type="text/tailwindcss">
+@layer components{
+ .card{@apply rounded-2xl bg-white dark:bg-slate-800/70 ring-1 ring-slate-200 dark:ring-slate-700 shadow-sm p-6 mb-5}
+ .btn{@apply inline-flex items-center gap-2 rounded-xl bg-ink dark:bg-gold text-white dark:text-ink font-semibold px-5 py-2.5 shadow hover:opacity-90 transition disabled:opacity-40 disabled:cursor-not-allowed focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold}
+ .btn2{@apply inline-flex items-center gap-2 rounded-xl ring-1 ring-slate-300 dark:ring-slate-600 font-semibold px-4 py-2 hover:bg-slate-100 dark:hover:bg-slate-700 transition disabled:opacity-40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-gold}
+ .inp{@apply w-full rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-gold}
+ .lbl{@apply block text-sm font-semibold mb-1 text-slate-700 dark:text-slate-300}
+ .h2{@apply text-xl font-extrabold tracking-tight mb-4}
+ .pill{@apply inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-bold}
+ .st-pending,.st-skipped_duplicate{@apply bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300}
+ .st-generated{@apply bg-sky-100 text-sky-800 dark:bg-sky-900 dark:text-sky-200}
+ .st-generating,.st-sending{@apply bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200 animate-pulse}
+ .st-sent{@apply bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200}
+ .st-failed,.st-invalid{@apply bg-rose-100 text-rose-800 dark:bg-rose-900 dark:text-rose-200}
+ th{@apply text-left px-3 py-2 text-xs font-bold text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-700}
+ td{@apply px-3 py-2 border-b border-slate-100 dark:border-slate-700/60 whitespace-nowrap}
+}
+:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+*,*::before,*::after{box-sizing:border-box}
+body{background:#f3f5f9}@media (prefers-color-scheme:dark){body{background:#0a1424}}
+section{display:none}section.on{display:block}
+</style></head>
+<body class="font-sans text-slate-900 dark:text-slate-100 min-h-screen">
+<div id="login" class="fixed inset-0 z-50 hidden place-items-center bg-ink/95 p-4">
+ <form id="lf" class="card w-full max-w-sm !mb-0">
+  <h2 class="h2">Sign in to CertiFlow</h2>
+  <label class="lbl" for="lu">Username</label><input id="lu" class="inp mb-3" autocomplete="username" required>
+  <label class="lbl" for="lp">Password</label><input id="lp" type="password" class="inp mb-3" autocomplete="current-password" required>
+  <div id="lerr" class="text-sm text-rose-600 dark:text-rose-300 mb-3"></div>
+  <button class="btn w-full justify-center">Sign in</button>
+  <button type="button" id="demo" class="btn2 w-full justify-center mt-2">Try demo mode (no backend)</button>
+ </form></div>
+<div id="toast" class="fixed bottom-5 left-1/2 -translate-x-1/2 z-50 hidden max-w-md rounded-xl px-4 py-3 text-sm font-semibold shadow-lg"></div>
+
+<div class="flex flex-col lg:flex-row min-h-screen">
+ <aside class="lg:w-72 lg:sticky lg:top-0 lg:h-screen bg-ink text-white p-6 flex flex-col shrink-0">
+  <div class="flex items-center gap-3">
+   <div class="w-11 h-11 rounded-xl bg-gold grid place-items-center text-ink"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 15.3 6.8 18.1l1-5.8L3.5 8.2l5.9-.9z"/></svg></div>
+   <div><div class="text-2xl font-extrabold leading-none">CertiFlow</div><div class="text-xs text-white/60">Certificate automation</div></div></div>
+  <ol id="nav" class="mt-6 flex lg:flex-col gap-2 overflow-x-auto"></ol>
+  <div class="mt-auto hidden lg:block space-y-3">
+   <div id="side" class="rounded-xl bg-white/10 p-4 text-sm text-white/80">No batch yet.</div>
+   <div id="me" class="flex items-center justify-between text-sm text-white/70"></div></div>
+ </aside>
+
+ <main class="flex-1 p-4 sm:p-8 max-w-5xl w-full mx-auto">
+  <section id="s0" class="on">
+   <h1 class="text-3xl sm:text-4xl font-extrabold tracking-tight">Start with your student list</h1>
+   <p class="text-slate-600 dark:text-slate-400 mt-1 mb-6">Upload an Excel (.xlsx) or CSV file, up to 20 MB. Nothing is sent until you approve it.</p>
+   <div class="card">
+    <label id="drop" for="file" class="block cursor-pointer rounded-2xl border-2 border-dashed border-slate-300 dark:border-slate-600 hover:border-gold p-10 text-center transition">
+     <svg class="mx-auto text-gold" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 16V4m0 0l-4 4m4-4l4 4M4 16v3a1 1 0 001 1h14a1 1 0 001-1v-3"/></svg>
+     <div class="mt-3 font-bold text-lg">Drop your file here, or click to browse</div>
+     <input id="file" type="file" accept=".csv,.xlsx" class="sr-only"></label>
+    <div class="grid sm:grid-cols-2 gap-4 mt-4">
+     <div><label class="lbl" for="bname">Batch name</label><input id="bname" class="inp" placeholder="HackFest 2026"></div>
+     <div><label class="lbl" for="bsheet">Sheet name (only for .xlsx with several sheets)</label><input id="bsheet" class="inp"></div></div>
+    <div class="mt-4 flex flex-wrap items-center gap-3"><button id="sample" class="btn2">Use a sample file</button><span id="upbusy" class="text-sm text-slate-500"></span></div>
+    <div id="up-info" class="mt-5"></div></div>
+  </section>
+
+  <section id="s1">
+   <h1 class="text-3xl font-extrabold tracking-tight mb-5">Choose a certificate template</h1>
+   <div id="tpls" class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-5"></div>
+   <div class="card"><h2 class="h2">Upload a new template</h2>
+    <div class="grid sm:grid-cols-2 gap-4"><div><label class="lbl" for="tfile">PDF, PNG or JPG (max 10 MB)</label><input id="tfile" type="file" accept=".pdf,.png,.jpg,.jpeg" class="inp"></div>
+    <div><label class="lbl" for="tname">Display name</label><input id="tname" class="inp"></div></div>
+    <button id="tup" class="btn2 mt-4">Upload template</button></div>
+   <button id="to2" class="btn" disabled>Continue to settings</button>
+  </section>
+
+  <section id="s2">
+   <h1 class="text-3xl font-extrabold tracking-tight mb-5">Settings and data check</h1>
+   <div id="cfg"></div>
+   <button id="savev" class="btn">Save settings and check data</button>
+   <div id="rep" class="mt-5"></div>
+   <button id="to3" class="btn mt-2" disabled>Continue to preview</button>
+  </section>
+
+  <section id="s3">
+   <h1 class="text-3xl font-extrabold tracking-tight mb-5">Preview before sending</h1>
+   <div class="card"><label class="lbl" for="who">Preview student</label><select id="who" class="inp max-w-sm"></select></div>
+   <div class="grid xl:grid-cols-2 gap-5">
+    <div class="card !p-3"><img id="pimg" alt="Certificate preview" class="w-full rounded-lg"></div>
+    <div class="card"><div id="mto" class="text-sm text-slate-500"></div><div id="msubj" class="font-bold mt-1"></div>
+     <iframe id="mbody" sandbox title="Email preview" class="w-full h-64 mt-2 rounded-xl bg-white border border-slate-200"></iframe>
+     <div id="mfile" class="mt-3 pill bg-gold/20 text-amber-800 dark:text-amber-200"></div></div></div>
+   <button id="to4" class="btn">Looks good, continue</button>
+  </section>
+
+  <section id="s4">
+   <h1 class="text-3xl font-extrabold tracking-tight mb-5">Send and track</h1>
+   <div class="card">
+    <div id="sstats" class="grid grid-cols-2 sm:grid-cols-4 gap-3"></div>
+    <div class="h-2.5 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden my-4"><i id="bar" class="block h-full w-0 bg-gradient-to-r from-jade to-gold transition-all duration-300"></i></div>
+    <div id="jobline" class="text-sm text-slate-500 mb-3"></div>
+    <div class="flex flex-wrap items-end gap-3">
+     <div><label class="lbl" for="jact">Action</label><select id="jact" class="inp"><option value="generate_and_send">Generate and send</option><option value="generate">Generate only</option><option value="send">Send generated</option></select></div>
+     <button id="jgo" class="btn">Start for all valid</button>
+     <button id="jretry" class="btn2">Retry failed</button>
+     <button id="jcancel" class="btn2 hidden">Cancel job</button>
+     <span class="grow"></span>
+     <a id="xrep" class="btn2" href="#">Report CSV</a><a id="xzip" class="btn2" href="#">All PDFs (zip)</a></div></div>
+   <div class="card !p-3">
+    <div class="flex flex-wrap gap-3 p-3"><select id="rf" class="inp max-w-[200px]" aria-label="Filter by status"></select><input id="rq" class="inp max-w-xs" placeholder="Search name, ID or email" aria-label="Search"></div>
+    <div class="overflow-x-auto"><table class="w-full text-sm"><thead><tr><th>#</th><th>Student</th><th>Email</th><th>File</th><th>Status</th><th>Tries</th><th></th></tr></thead><tbody id="tbody"></tbody></table></div>
+    <div class="flex items-center justify-between p-3 text-sm"><span id="pinfo"></span><span class="flex gap-2"><button id="prev" class="btn2 !py-1">Previous</button><button id="next" class="btn2 !py-1">Next</button></span></div></div>
+  </section>
+ </main>
+</div>
+<script>
+const $=id=>document.getElementById(id);
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const STATUSES=['pending','invalid','generating','generated','sending','sent','failed','skipped_duplicate'];
+const STEPS=['Upload','Template','Settings and check','Preview','Send and track'];
+const DEF_KEYS=['NAME','ID','EVENT','ACHIEVEMENT','DATE'];
+let MOCK=false,CSRF='',ST={step:0,batch:null,tpl:null,tpls:[],cfg:null,rep:null,page:1,f:'',q:'',stats:null,me:null};
+const B=()=>ST.batch.id;
+
+/* ---------- API layer: every backend call goes through here ---------- */
+const API_BASE = `${window.location.origin}/api/v1`;
+
+/* ---------- API layer: every backend call goes through here ---------- */
+async function api(method,path,body,o={}){
+ if(MOCK)return mock(method,path,body,o);
+ const h={};if(method!='GET')h['X-CSRF-Token']=CSRF;
+ let b;if(body instanceof FormData)b=body;else if(body!==undefined){h['Content-Type']='application/json';b=JSON.stringify(body)}
+ if(o.idem)h['Idempotency-Key']=o.idem;
+ const r=await fetch(API_BASE+path,{method,headers:h,body:b,credentials:'include'});
+ if(r.status==204)return null;
+ const j=await r.json().catch(()=>null);
+ if(!r.ok){if(r.status==401&&path!='/auth/login')showLogin();throw (j&&j.error)||{code:'internal_error',message:'Request failed ('+r.status+')'}}
+ return j}
+const url=p=>API_BASE+p;
+function toast(x,good){const e=typeof x=='string'?x:(x&&x.message)||'Something went wrong';const t=$('toast');t.textContent=e;
+ t.className='fixed bottom-5 left-1/2 -translate-x-1/2 z-50 max-w-md rounded-xl px-4 py-3 text-sm font-semibold shadow-lg '+(good||typeof x=='string'&&!/fail|error/i.test(x)?'bg-emerald-600 text-white':'bg-rose-600 text-white');
+ clearTimeout(toast.t);toast.t=setTimeout(()=>t.classList.add('hidden'),4500)}
+const pill=s=>`<span class="pill st-${s}">${s.replace('_',' ')}</span>`;
+
+/* ---------- login ---------- */
+function showLogin(){$('login').classList.remove('hidden');$('login').classList.add('grid')}
+function setMe(me){ST.me=me;CSRF=me.csrf_token;$('login').classList.add('hidden');$('login').classList.remove('grid');
+ $('me').innerHTML=`<span>${esc(me.username)} (${esc(me.role)}${MOCK?', demo':''})</span><button id="lo" class="underline">Log out</button>`;
+ $('lo').onclick=async()=>{try{await api('POST','/auth/logout')}catch(e){}MOCK=false;ST={step:0,batch:null,tpl:null,tpls:[],cfg:null,rep:null,page:1,f:'',q:''};$('up-info').innerHTML='';nav();showLogin()}}
+$('lf').onsubmit=async e=>{e.preventDefault();$('lerr').textContent='';
+ try{setMe(await api('POST','/auth/login',{username:$('lu').value,password:$('lp').value}))}catch(x){$('lerr').textContent=x.message}};
+$('demo').onclick=()=>{MOCK=true;api('GET','/auth/me').then(setMe)};
+
+/* ---------- navigation ---------- */
+function nav(){
+ $('nav').innerHTML=STEPS.map((t,i)=>`<li><button data-n="${i}" class="w-full flex items-center gap-3 rounded-xl px-3 py-2 text-left whitespace-nowrap transition ${i==ST.step?'bg-white/15 text-white':'text-white/60 hover:text-white'}"><span class="grid place-items-center w-7 h-7 rounded-full text-xs font-bold ${i<ST.step?'bg-gold text-ink':i==ST.step?'bg-white text-ink':'ring-1 ring-white/40'}">${i<ST.step?'✓':i+1}</span>${t}</button></li>`).join('');
+ document.querySelectorAll('section').forEach((s,i)=>s.classList.toggle('on',i==ST.step));window.scrollTo(0,0);
+ $('side').innerHTML=ST.batch?`<b class="text-white">${esc(ST.batch.name)}</b><br>${ST.batch.row_count} rows${ST.rep?`<br>${ST.rep.valid} ready, ${ST.rep.invalid} invalid`:''}`:'No batch yet.'}
+async function go(n){
+ if(n>=1&&!ST.batch)return toast('Upload a file first.');
+ if(n>=2&&!ST.tpl)return toast('Choose a template first.');
+ if(n>=3&&!(ST.rep&&ST.rep.valid>0))return toast('Save settings and check the data first.');
+ ST.step=n;nav();clearTimeout(ST.t);
+ try{if(n==1)await renderTpl();if(n==2)renderCfg();if(n==3)await renderPrev();if(n==4)await renderSend()}catch(e){toast(e)}}
+$('nav').onclick=e=>{const b=e.target.closest('[data-n]');if(b)go(+b.dataset.n)};
+$('to2').onclick=()=>go(2);$('to3').onclick=()=>go(3);$('to4').onclick=()=>go(4);
+
+/* ---------- step 1: upload batch ---------- */
+async function upload(f){
+ if(!f)return;const fd=new FormData();fd.append('file',f);fd.append('name',$('bname').value||f.name);if($('bsheet').value)fd.append('sheet',$('bsheet').value);
+ $('upbusy').textContent='Uploading...';
+ try{ST.batch=await api('POST','/batches',fd);ST.cfg=null;ST.rep=null;nav();
+  $('up-info').innerHTML=`<div class="rounded-xl bg-emerald-50 dark:bg-emerald-950/40 ring-1 ring-emerald-200 dark:ring-emerald-800 p-4"><div class="font-bold">${esc(ST.batch.name)} loaded: ${ST.batch.row_count} rows, ${ST.batch.columns.length} columns</div>
+  <div class="overflow-x-auto mt-3"><table class="w-full text-sm"><thead><tr><th>Column</th><th>Examples</th><th>Detected as</th></tr></thead>${ST.batch.columns.map(c=>`<tr><td class="font-semibold">${esc(c.name)}</td><td>${esc(c.sample.join(', '))}</td><td>${c.guessed_role?`<span class="pill bg-gold/20 text-amber-800 dark:text-amber-200">${c.guessed_role}</span>`:'-'}</td></tr>`).join('')}</table></div>
+  <button id="nx" class="btn mt-4">Continue</button></div>`;$('nx').onclick=()=>go(1)}
+ catch(e){toast(e)}finally{$('upbusy').textContent=''}}
+$('file').onchange=e=>upload(e.target.files[0]);
+const dz=$('drop');dz.ondragover=e=>{e.preventDefault();dz.classList.add('border-gold')};dz.ondragleave=()=>dz.classList.remove('border-gold');
+dz.ondrop=e=>{e.preventDefault();dz.classList.remove('border-gold');upload(e.dataTransfer.files[0])};
+$('sample').onclick=()=>upload(new File([`Student Name,Student ID,Student Email,Personal Email,Event,Achievement,Date
+Ananya Rao,MU2501,ananya.rao@mahindra.edu,ananya@gmail.com,CodeSprint Hackathon,First Place,12 Oct 2026
+Rahul Verma,MU2502,rahul.verma@mahindra.edu,,CodeSprint Hackathon,Participation,12 Oct 2026
+Sneha Iyer,MU2503,not-an-email,sneha.i@gmail.com,CodeSprint Hackathon,Second Place,12 Oct 2026
+,MU2504,kiran@mahindra.edu,,CodeSprint Hackathon,Participation,12 Oct 2026
+Ananya Rao,MU2501,ananya.rao@mahindra.edu,,CodeSprint Hackathon,First Place,12 Oct 2026
+Dev Patel,MU2505,dev.patel@mahindra.edu,dev@gmail.com,CodeSprint Hackathon,Best UI,12 Oct 2026`],'sample-students.csv',{type:'text/csv'}));
+
+/* ---------- step 2: templates ---------- */
+const tplImg=t=>MOCK?drawCert({name:'{{NAME}}',line:'{{ACHIEVEMENT}} in {{EVENT}}'}):url(`/templates/${t.id}/preview.png`);
+const keysOf=t=>t.placeholders.length?t.placeholders.map(p=>p.key):DEF_KEYS;
+async function renderTpl(){ST.tpls=(await api('GET','/templates')).items;drawTpls()}
+function drawTpls(){
+ $('tpls').innerHTML=ST.tpls.length?ST.tpls.map(t=>`<div class="rounded-2xl ring-2 ${ST.tpl&&ST.tpl.id==t.id?'ring-gold':'ring-slate-200 dark:ring-slate-700'} p-3 bg-white dark:bg-slate-800/70">
+  <button data-pick="${esc(t.id)}" class="block w-full text-left"><img alt="" class="w-full rounded-lg border border-slate-200 dark:border-slate-700" src="${tplImg(t)}"><div class="mt-2 font-bold">${esc(t.name)}</div></button>
+  <div class="mt-1 flex flex-wrap gap-1">${t.placeholders.map(p=>`<span class="pill bg-gold/20 text-amber-800 dark:text-amber-200">{{${esc(p.key)}}}</span>`).join('')||'<span class="text-xs text-slate-500">Image template</span>'}</div>
+  <button data-del="${esc(t.id)}" class="text-xs text-rose-600 dark:text-rose-300 mt-2 underline">Delete</button></div>`).join(''):'<p class="text-slate-500">No templates yet. Upload one below.</p>';
+ $('to2').disabled=!ST.tpl}
+$('tpls').onclick=async e=>{const p=e.target.closest('[data-pick]'),d=e.target.closest('[data-del]');
+ if(p){ST.tpl=ST.tpls.find(t=>t.id==p.dataset.pick);ST.cfg=null;ST.rep=null;drawTpls()}
+ if(d&&confirm('Delete this template?'))try{await api('DELETE','/templates/'+d.dataset.del);if(ST.tpl&&ST.tpl.id==d.dataset.del)ST.tpl=null;renderTpl()}catch(x){toast(x)}};
+$('tup').onclick=async()=>{const f=$('tfile').files[0];if(!f)return toast('Choose a template file first.');
+ const fd=new FormData();fd.append('file',f);if($('tname').value)fd.append('name',$('tname').value);
+ try{
+  const uploaded=await api('POST','/templates',fd);
+  await renderTpl();
+  // Select the newly uploaded template so Continue to settings is enabled.
+  ST.tpl=ST.tpls.find(t=>t.id===uploaded.id)||null;
+  ST.cfg=null;ST.rep=null;
+  drawTpls();
+  toast('Template uploaded and selected.',true);
+ }catch(e){toast(e)}};
+
+/* ---------- step 3: settings + validation ---------- */
+function renderCfg(){
+ const cols=ST.batch.columns,role=r=>(cols.find(c=>c.guessed_role==r)||{}).name||'',keys=keysOf(ST.tpl);
+ const R={NAME:'name',ID:'student_id',EVENT:'event',ACHIEVEMENT:'achievement',DATE:'date'};
+ const C=ST.cfg||{field_map:Object.fromEntries(keys.map(k=>[k,role(R[k])||(cols.find(c=>c.name.toLowerCase()==k.toLowerCase())||{}).name||'']).filter(x=>x[1])),constants:{},
+  required_columns:[role('name'),role('email')].filter(Boolean),email:{primary_column:role('email'),fallback_column:role('personal_email'),subject:'Congratulations {{NAME}}! Your certificate for {{EVENT}}',body_html:'<p>Hi {{NAME}},</p><p>Congratulations on {{ACHIEVEMENT}} in {{EVENT}}! Your certificate is attached.</p><p>Warm regards,<br>The Organizing Team</p>',sender_name:'Organizing Team'},
+  dedupe_columns:[role('student_id'),role('event')].filter(Boolean),filename_pattern:'{{EVENT}}_{{ID}}_{{NAME}}.pdf'};
+ const sel=(id,v,blank)=>`<select id="${id}" class="inp">${blank?'<option value="">(none)</option>':'<option value="">Choose column</option>'}${cols.map(c=>`<option ${c.name==v?'selected':''}>${esc(c.name)}</option>`).join('')}</select>`;
+ const chk=(n,arr)=>cols.map(c=>`<label class="flex items-center gap-2 text-sm"><input type="checkbox" name="${n}" value="${esc(c.name)}" ${(arr||[]).includes(c.name)?'checked':''} class="accent-amber-500">${esc(c.name)}</label>`).join('');
+ $('cfg').innerHTML=`
+ <div class="card"><h2 class="h2">Fill the template from your columns</h2><div class="grid sm:grid-cols-2 gap-4">${keys.map(k=>`<div><label class="lbl" for="fm_${k}"><span class="text-gold font-mono">{{${esc(k)}}}</span></label><div class="flex gap-2">${sel('fm_'+k,C.field_map[k])}<input id="fc_${k}" class="inp" placeholder="or fixed text" value="${esc((C.constants||{})[k]||'')}" aria-label="Fixed text for ${esc(k)}"></div></div>`).join('')}</div></div>
+ <div class="card"><h2 class="h2">Email</h2><div class="grid sm:grid-cols-2 gap-4">
+  <div><label class="lbl" for="em1">Send to (preferred column)</label>${sel('em1',C.email.primary_column)}</div>
+  <div><label class="lbl" for="em2">Fallback column (if preferred is empty or invalid)</label>${sel('em2',C.email.fallback_column,true)}</div>
+  <div><label class="lbl" for="subj">Subject</label><input id="subj" class="inp" value="${esc(C.email.subject)}"></div>
+  <div><label class="lbl" for="sname">Sender name</label><input id="sname" class="inp" value="${esc(C.email.sender_name||'')}"></div></div>
+  <label class="lbl mt-4" for="bodyh">Message (HTML, supports {{PLACEHOLDERS}})</label><textarea id="bodyh" rows="5" class="inp font-mono text-sm">${esc(C.email.body_html)}</textarea></div>
+ <div class="card"><h2 class="h2">Rules</h2><div class="grid sm:grid-cols-2 gap-6">
+  <div><div class="lbl">Columns that must not be empty</div><div class="grid gap-1">${chk('req',C.required_columns)}</div></div>
+  <div><div class="lbl">Same combination = duplicate</div><div class="grid gap-1">${chk('dd',C.dedupe_columns)}</div></div></div>
+  <label class="lbl mt-4" for="fnp">Certificate file name</label><input id="fnp" class="inp max-w-md" value="${esc(C.filename_pattern)}"></div>`}
+function readCfg(){const fm={},cn={};
+ keysOf(ST.tpl).forEach(k=>{const v=$('fm_'+k).value,t=$('fc_'+k).value.trim();if(v)fm[k]=v;else if(t)cn[k]=t});
+ const ck=n=>[...document.querySelectorAll(`input[name=${n}]:checked`)].map(i=>i.value);
+ return{template_id:ST.tpl.id,field_map:fm,constants:cn,required_columns:ck('req'),email:{primary_column:$('em1').value,fallback_column:$('em2').value||null,subject:$('subj').value,body_html:$('bodyh').value,body_text:$('bodyh').value.replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').trim(),sender_name:$('sname').value},dedupe_columns:ck('dd'),filename_pattern:$('fnp').value}}
+async function validate(){ST.rep=await api('POST',`/batches/${B()}/validate`);await drawRep();nav()}
+$('savev').onclick=async()=>{ST.cfg=readCfg();$('savev').disabled=true;
+ try{await api('PUT',`/batches/${B()}/config`,ST.cfg);await validate()}catch(e){toast(e)}finally{$('savev').disabled=false}};
+async function drawRep(){const r=ST.rep,box=(n,l,c)=>`<div class="rounded-xl ring-1 ring-slate-200 dark:ring-slate-700 p-3"><div class="text-3xl font-extrabold ${c}">${n}</div><div class="text-xs text-slate-500">${l}</div></div>`;
+ const bad=(await api('GET',`/batches/${B()}/records?status=invalid,skipped_duplicate&page_size=50`)).items;
+ $('rep').innerHTML=`<div class="card"><h2 class="h2">Data check</h2><div class="grid grid-cols-2 sm:grid-cols-4 gap-3">${box(r.total,'records','')}${box(r.valid,'ready to send','text-emerald-600 dark:text-emerald-400')}${box(r.invalid,'invalid','text-rose-600 dark:text-rose-400')}${box(r.duplicates,'duplicates','text-amber-600 dark:text-amber-400')}</div>
+ <div class="mt-3 flex flex-wrap gap-2">${Object.entries(r.issues_by_type||{}).map(([k,v])=>`<span class="pill st-failed">${k.replace(/_/g,' ')}: ${v}</span>`).join('')}</div>
+ ${bad.length?`<div class="overflow-x-auto mt-4"><table class="w-full text-sm"><thead><tr><th>Row</th><th>Name</th><th>Problem</th><th></th></tr></thead>${bad.map(x=>`<tr><td>${x.row_number}</td><td>${esc(x.name)||'<i class="text-slate-400">empty</i>'}</td><td>${x.issues.map(i=>esc(i.message)).join('; ')}</td><td>${x.issues.filter(i=>i.column&&i.type!='duplicate_record').map(i=>`<button class="btn2 !py-1 text-xs" data-fix="${esc(x.id)}" data-col="${esc(i.column)}">Fix ${esc(i.column)}</button>`).join(' ')}</td></tr>`).join('')}</table></div>`:''}</div>`;
+ $('to3').disabled=!r.valid}
+$('rep').onclick=async e=>{const b=e.target.closest('[data-fix]');if(!b)return;const v=prompt('New value for "'+b.dataset.col+'"');if(v===null)return;
+ try{await api('PATCH',`/batches/${B()}/records/${b.dataset.fix}`,{fields:{[b.dataset.col]:v}});await validate()}catch(x){toast(x)}};
+
+/* ---------- step 4: preview ---------- */
+async function renderPrev(){const items=(await api('GET',`/batches/${B()}/records?status=pending&page_size=200`)).items;
+ $('who').innerHTML=items.map(r=>`<option value="${esc(r.id)}">${esc(r.name||'Row '+r.row_number)}</option>`).join('');drawPrev()}
+async function drawPrev(){const id=$('who').value;if(!id)return;
+ $('pimg').src=MOCK?certImg(id):url(`/batches/${B()}/preview/certificate?record_id=${encodeURIComponent(id)}&t=${Date.now()}`);
+ try{const m=await api('GET',`/batches/${B()}/preview/email?record_id=${encodeURIComponent(id)}`);
+  $('mto').textContent='To: '+m.to;$('msubj').textContent=m.subject;$('mbody').srcdoc=m.body_html;$('mfile').textContent='Attachment: '+m.attachment_filename}catch(e){toast(e)}}
+$('who').onchange=drawPrev;
+
+/* ---------- step 5: send and track ---------- */
+const ACTIVE=['queued','running','cancelling'];
+async function renderSend(){
+ $('rf').innerHTML='<option value="">All statuses</option>'+STATUSES.map(s=>`<option value="${s}">${s.replace('_',' ')}</option>`).join('');
+ $('xrep').href=url(`/batches/${B()}/export/report.csv`);$('xzip').href=url(`/batches/${B()}/export/certificates.zip`);
+ $('jgo').disabled=$('jretry').disabled=ST.me&&ST.me.role=='viewer';
+ ST.page=1;kick()}
+function kick(){clearTimeout(ST.t);const loop=async()=>{try{await loadRecs();const s=await refreshStats();if(s.job&&ACTIVE.includes(s.job.state))ST.t=setTimeout(loop,1200)}catch(e){toast(e)}};loop()}
+async function refreshStats(){const s=await api('GET',`/batches/${B()}/stats`);ST.stats=s;const c=s.counts,live=s.total-c.invalid-c.skipped_duplicate;
+ $('sstats').innerHTML=['pending','generated','sent','failed'].map(k=>`<div class="rounded-xl ring-1 ring-slate-200 dark:ring-slate-700 p-3"><div class="text-2xl font-extrabold">${c[k]}</div>${pill(k)}</div>`).join('');
+ $('bar').style.width=(live?c.sent/live*100:0)+'%';
+ const j=s.job,on=j&&ACTIVE.includes(j.state);$('jcancel').classList.toggle('hidden',!on);$('jcancel').dataset.id=j?j.id:'';
+ $('jobline').textContent=j?`Job ${j.state.replace(/_/g,' ')}: ${j.done} of ${j.total} done, ${j.failed} failed`:'No job has run yet.';return s}
+async function loadRecs(){const p=new URLSearchParams({page:ST.page,page_size:15});if(ST.f)p.set('status',ST.f);if(ST.q)p.set('q',ST.q);
+ const d=await api('GET',`/batches/${B()}/records?`+p);
+ $('tbody').innerHTML=d.items.map(r=>`<tr><td>${r.row_number}</td><td class="font-semibold">${esc(r.name)||'-'}</td><td>${esc(r.recipient_email)||'-'}</td><td class="font-mono text-xs">${esc(r.certificate_filename)||'-'}</td><td>${pill(r.status)}${r.error?`<div class="text-xs text-rose-600 dark:text-rose-300">${esc(r.error.message)}</div>`:''}</td><td>${r.attempts||0}</td>
+  <td class="text-right">${['generated','sent'].includes(r.status)?`<a class="btn2 !py-1 text-xs" href="${url(`/batches/${B()}/records/${r.id}/certificate`)}">PDF</a> `:''}${r.status=='sent'&&ST.me.role!='viewer'?`<button class="btn2 !py-1 text-xs" data-re="${esc(r.id)}">Resend</button>`:''}</td></tr>`).join('')||'<tr><td colspan="7" class="text-center text-slate-500 py-6">No records match.</td></tr>';
+ const last=Math.max(1,Math.ceil(d.total/d.page_size));$('pinfo').textContent=`Page ${d.page} of ${last} (${d.total} records)`;$('prev').disabled=d.page<=1;$('next').disabled=d.page>=last}
+async function startJob(scope){const c=ST.stats.counts,action=scope=='failed'?'generate_and_send':$('jact').value,body={action,scope};
+ if(action!='generate')body.confirm_count=scope=='failed'?c.failed:ST.rep.expected_count;
+ if(action!='generate'&&!confirm(`Send ${body.confirm_count} certificate email(s)?`))return;
+ try{await api('POST',`/batches/${B()}/jobs`,body,{idem:crypto.randomUUID()});toast('Job started.',true);kick()}
+ catch(e){toast(e.code=='confirm_mismatch'?e.message+' Check the data again in step 3, then retry.':e)}}
+$('jgo').onclick=()=>startJob('all_valid');$('jretry').onclick=()=>startJob('failed');
+$('jcancel').onclick=async()=>{try{await api('POST','/jobs/'+$('jcancel').dataset.id+'/cancel');kick()}catch(e){toast(e)}};
+$('tbody').onclick=async e=>{const b=e.target.closest('[data-re]');if(!b||!confirm('This student already received a certificate. Send it again?'))return;
+ try{await api('POST',`/batches/${B()}/records/${b.dataset.re}/resend`);kick()}catch(x){toast(x)}};
+$('rf').onchange=()=>{ST.f=$('rf').value;ST.page=1;loadRecs()};
+let qt;$('rq').oninput=()=>{clearTimeout(qt);qt=setTimeout(()=>{ST.q=$('rq').value;ST.page=1;loadRecs()},300)};
+$('prev').onclick=()=>{ST.page--;loadRecs()};$('next').onclick=()=>{ST.page++;loadRecs()};
+[['xrep','Report CSV'],['xzip','Certificate ZIP']].forEach(([id,l])=>$(id).onclick=e=>{if(MOCK){e.preventDefault();toast(l+' downloads work once the real backend is connected.',true)}});
+
+/* ---------- demo mode: a tiny in-browser fake of the API so you can demo without a backend ---------- */
+const M={tpl:[{id:'t1',name:'Classic gold (demo)',kind:'pdf',placeholders:DEF_KEYS.map(key=>({key,occurrences:1})),created_at:''}],recs:[],job:null};
+const ROLES=[['personal_email',/personal/i],['email',/mail/i],['student_id',/\bid\b|roll/i],['name',/name/i],['event',/event/i],['certificate_type',/type/i],['achievement',/achiev|award|rank/i],['date',/date/i]];
+const slug=s=>String(s).replace(/[^\w]+/g,'_').replace(/^_|_$/g,'');
+const mv=(r,k)=>{const c=M.cfg;return c.field_map[k]?r.fields[c.field_map[k]]||'':(c.constants||{})[k]||''};
+const mfill=(t,r)=>t.replace(/\{\{(\w+)\}\}/g,(m,k)=>mv(r,k)||m);
+function drawCert(t){const c=document.createElement('canvas');c.width=1000;c.height=707;const x=c.getContext('2d');x.fillStyle='#fffdf6';x.fillRect(0,0,1000,707);x.strokeStyle='#c9a227';x.lineWidth=10;x.strokeRect(20,20,960,667);x.lineWidth=2;x.strokeRect(38,38,924,631);x.textAlign='center';
+ x.fillStyle='#0b1f3a';x.font='600 54px Georgia';x.fillText('Certificate of Achievement',500,170);x.fillStyle='#555';x.font='22px Georgia';x.fillText('proudly presented to',500,240);x.fillStyle='#222';x.font='italic 70px Georgia';x.fillText(t.name,500,340);x.fillStyle='#555';x.font='26px Georgia';x.fillText(t.line,500,430);x.fillStyle='#c9a227';x.beginPath();x.arc(500,560,45,0,7);x.fill();return c.toDataURL()}
+const certImg=id=>{const r=M.recs.find(x=>x.id==id);return drawCert({name:r.name||'',line:mfill('{{ACHIEVEMENT}} in {{EVENT}}',r)})};
+function mcheck(){const c=M.cfg,seen={},ok=/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/,locked=['sent','sending','generating','generated','failed'];
+ M.recs.forEach(r=>{const f=r.fields,is=[],add=(type,column,message)=>is.push({record_id:r.id,row_number:r.row_number,type,column,message});
+  r.name=mv(r,'NAME')||null;r.student_id=mv(r,'ID')||null;
+  if(!r.name)add('missing_name',c.field_map.NAME||null,'Name is empty');
+  (c.required_columns||[]).forEach(k=>{if(!f[k]&&k!=c.field_map.NAME&&k!=c.email.primary_column)add('missing_required_field',k,k+' is empty')});
+  const p=f[c.email.primary_column],fb=c.email.fallback_column&&f[c.email.fallback_column],e=[p,fb].find(v=>v&&ok.test(v));r.recipient_email=e||null;
+  if(!e){const raw=p||fb;add(raw?'invalid_email':'missing_email',c.email.primary_column,raw?'Not a valid email address':'Email is empty')}
+  let dup=false;if((c.dedupe_columns||[]).length){const k=c.dedupe_columns.map(x=>f[x]).join('|').toLowerCase();if(seen[k]&&!locked.includes(r.status)){dup=true;add('duplicate_record',null,'Duplicate of row '+seen[k])}else seen[k]=r.row_number}
+  r.issues=is;r.certificate_filename=is.length?null:mfill(c.filename_pattern||'{{NAME}}.pdf',r).replace(/[^\w.\- ]+/g,'_');
+  if(!locked.includes(r.status))r.status=dup?'skipped_duplicate':is.length?'invalid':'pending'})}
+function mjob(ids,action,scope){const j=M.job={id:'j'+Date.now(),batch_id:M.b.id,action,scope,state:'running',total:ids.length,done:0,failed:0,started_at:new Date().toISOString(),finished_at:null};let i=0,s=0;
+ const t=setInterval(()=>{if(j.state=='cancelling'||i>=ids.length){j.state=j.state=='cancelling'?'cancelled':j.failed?'completed_with_errors':'completed';j.finished_at=new Date().toISOString();clearInterval(t);return}
+  const r=M.recs.find(x=>x.id==ids[i]);
+  if(!s){r.status=action=='generate'?'generating':'sending';s=1}
+  else{const bad=action!='generate'&&Math.random()<.12;r.status=action=='generate'?'generated':bad?'failed':'sent';r.attempts++;r.error=bad?{code:'smtp_error',message:'Mailbox unavailable (demo)'}:null;if(r.status=='sent')r.sent_at=new Date().toISOString();if(bad)j.failed++;j.done++;i++;s=0}},220)}
+async function mock(method,path,body,o){
+ await new Promise(r=>setTimeout(r,80));const[p,qs]=path.split('?'),q=new URLSearchParams(qs||''),me={username:'demo',role:'admin',csrf_token:'demo'};let m;
+ if(p=='/auth/me'||p=='/auth/login')return me;if(p=='/auth/logout')return null;
+ if(p=='/templates'&&method=='GET')return{items:M.tpl};
+ if(p=='/templates'){const f=body.get('file');const t={id:'t'+Date.now(),name:body.get('name')||f.name,kind:/pdf$/i.test(f.name)?'pdf':'image',placeholders:/pdf$/i.test(f.name)?DEF_KEYS.map(key=>({key,occurrences:1})):[],created_at:''};M.tpl.push(t);return t}
+ if(m=p.match(/^\/templates\/(\w+)$/)){M.tpl=M.tpl.filter(t=>t.id!=m[1]);return null}
+ if(p=='/batches'){const f=body.get('file');let rows;try{const wb=XLSX.read(await f.arrayBuffer());rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{raw:false,defval:''})}catch(e){throw{code:'unreadable_file',message:'This file could not be read.'}}
+  if(!rows.length)throw{code:'unreadable_file',message:'The file has no data rows.'};
+  M.b={id:'b1',name:body.get('name'),status:'uploaded',row_count:rows.length,created_at:'',columns:Object.keys(rows[0]).map(n=>({name:n,sample:rows.map(r=>r[n]).filter(Boolean).slice(0,3),guessed_role:(ROLES.find(x=>x[1].test(n))||[null])[0]}))};
+  M.recs=rows.map((f,i)=>({id:'r'+(i+1),row_number:i+1,fields:f,status:'pending',attempts:0,issues:[],name:null,student_id:null,recipient_email:null,certificate_filename:null,sent_at:null,error:null}));M.job=null;return M.b}
+ if(p.endsWith('/config')){M.cfg=body;return body}
+ if(p.endsWith('/validate')){mcheck();const is=M.recs.flatMap(r=>r.issues),by={};is.forEach(i=>by[i.type]=(by[i.type]||0)+1);const n=s=>M.recs.filter(r=>r.status==s).length;
+  return{total:M.recs.length,valid:n('pending'),invalid:n('invalid'),duplicates:n('skipped_duplicate'),expected_count:n('pending'),issues_by_type:by,sample_issues:is.slice(0,8)}}
+ if(p.endsWith('/stats')){const counts=Object.fromEntries(STATUSES.map(s=>[s,M.recs.filter(r=>r.status==s).length]));return{total:M.recs.length,counts,job:M.job}}
+ if(m=p.match(/\/records\/(\w+)\/resend$/)){const r=M.recs.find(x=>x.id==m[1]);r.status='pending';mjob([r.id],'generate_and_send','selected');return M.job}
+ if(m=p.match(/\/records\/(\w+)$/)){const r=M.recs.find(x=>x.id==m[1]);if(method=='PATCH'){Object.assign(r.fields,body.fields);if(r.status=='invalid'||r.status=='skipped_duplicate')r.status='pending';mcheck()}return r}
+ if(p.endsWith('/records')){let l=M.recs;if(q.get('status'))l=l.filter(r=>q.get('status').split(',').includes(r.status));
+  if(q.get('q')){const s=q.get('q').toLowerCase();l=l.filter(r=>[r.name,r.student_id,r.recipient_email].join(' ').toLowerCase().includes(s))}
+  const ps=+q.get('page_size')||50,pg=+q.get('page')||1;return{items:l.slice((pg-1)*ps,pg*ps),page:pg,page_size:ps,total:l.length}}
+ if(p.endsWith('/preview/email')){const r=M.recs.find(x=>x.id==q.get('record_id')),c=M.cfg;return{record_id:r.id,to:r.recipient_email,subject:mfill(c.email.subject,r),body_html:mfill(c.email.body_html,r),attachment_filename:r.certificate_filename}}
+ if(p.endsWith('/jobs')){if(M.job&&ACTIVE.includes(M.job.state))throw{code:'job_already_running',message:'A job is already running for this batch.'};
+  const exp=M.recs.filter(r=>r.status=='pending').length;if(body.action!='generate'&&body.scope=='all_valid'&&body.confirm_count!=exp)throw{code:'confirm_mismatch',message:'The number of records changed since you last checked.'};
+  const ids=M.recs.filter(r=>body.scope=='failed'?r.status=='failed':['pending','generated'].includes(r.status)).map(r=>r.id);mjob(ids,body.action,body.scope);return M.job}
+ if(p.includes('/cancel')){M.job.state='cancelling';return M.job}
+ throw{code:'not_found',message:'Not available in demo mode.'}}
+
+(async()=>{nav();try{setMe(await api('GET','/auth/me'))}catch(e){showLogin()}})();
+</script></body></html>
